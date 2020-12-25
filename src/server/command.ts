@@ -15,38 +15,36 @@ const urlArgs = (
 ): { [s: string]: string } =>
   Object.assign(def, url.parse(referer, true).query);
 
-export const getCommand = (
+export function getCommand(
   {
-    request: {
-      headers: { referer },
-    },
+    request: { headers },
     client: {
       conn: { remoteAddress },
     },
   }: Socket,
-  { user, host, port, auth, pass, key, knownHosts }: SSH,
+  { user, host, port, auth, pass, key, knownHosts, config }: SSH,
   command: string,
   forcessh: boolean,
-): { args: string[]; user: boolean } => ({
-  args:
-    !forcessh && localhost(host)
-      ? loginOptions(command, remoteAddress)
-      : sshOptions(
+): [string[], boolean] {
+  const sshAddress = address(headers, user, host);
+  const localLogin = !forcessh && localhost(host);
+  return localLogin
+    ? [loginOptions(command, remoteAddress), localLogin]
+    : [
+        sshOptions(
           {
-            ...urlArgs(referer, {
+            ...urlArgs(headers.referer, {
               port: `${port}`,
               pass: pass || '',
               command,
               auth,
               knownHosts,
+              config: config || '',
             }),
-            host: address(referer, user, host),
+            host: sshAddress,
           },
           key,
         ),
-  user:
-    (!forcessh && localhost(host)) ||
-    user !== '' ||
-    user.includes('@') ||
-    address(referer, user, host).includes('@'),
-});
+        user !== '' || user.includes('@') || sshAddress.includes('@'),
+      ];
+}
